@@ -21,8 +21,9 @@ package com.hpfxd.chatfilter.filter;
 import com.google.inject.Inject;
 import com.hpfxd.chatfilter.api.AsyncChatFilterEvent;
 import com.hpfxd.chatfilter.config.ChatFilterConfig;
-import com.hpfxd.natelib.config.language.BukkitLanguageKey;
-import com.hpfxd.natelib.config.language.BukkitLanguageMessageBuilder;
+import com.hpfxd.natelib.config.language.LanguageKey;
+import com.hpfxd.natelib.config.language.LanguageMessageBuilder;
+import com.hpfxd.natelib.config.language.resolver.PlaceholderAPIResolver;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -36,32 +37,33 @@ import java.util.Map;
 import java.util.regex.Matcher;
 
 public class FilterManager implements Listener {
-    private static final BukkitLanguageKey MESSAGE_BLOCK = new BukkitLanguageKey("user.block",
-            "&7&m------------------------------------------------\n" +
-                    "&cYour message was blocked.\n" +
-                    "&cPlease follow the server rules when chatting.\n" +
-                    "&7&m------------------------------------------------");
+    private static final LanguageKey MESSAGE_BLOCK = new LanguageKey("user.block",
+        "&7&m------------------------------------------------\n" +
+            "&cYour message was blocked.\n" +
+            "&cPlease follow the server rules when chatting.\n" +
+            "&7&m------------------------------------------------");
 
-    private static final BukkitLanguageKey MESSAGE_FAKE_CHAT_FORMAT = new BukkitLanguageKey("user.fake-chat-format",
-            "This setting is purely for compatibility for some chat plugins.\n" +
-                    "If you find that all players can see 'faked' chat messages, try using this.\n" +
-                    "In most cases, you can keep this empty.\n" +
-                    "\n" +
-                    "If you need this, set it to how your chat is normally formatted.\n" +
-                    "Supports PlaceholderAPI if it is installed.",
-
-            "");
+    private static final LanguageKey MESSAGE_FAKE_CHAT_FORMAT = new LanguageKey("user.fake-chat-format",
+        "This setting is purely for compatibility for some chat plugins.\n" +
+            "If you find that all players can see 'faked' chat messages, try using this.\n" +
+            "In most cases, you can keep this empty.\n" +
+            "\n" +
+            "If you need this, set it to how your chat is normally formatted.\n" +
+            "\n" +
+            "PlaceholderAPI is supported by prefixing placeholders with \"papi_\".\n" +
+            "For example: \"%papi_vault_prefix%\"",
+        "");
 
     //
 
-    private static final BukkitLanguageKey MESSAGE_STAFF_BLOCK = new BukkitLanguageKey("staff.block",
-            "&7[&c&lFilter&7] &c(Blocked) %player%&f: &7%message%");
+    private static final LanguageKey MESSAGE_STAFF_BLOCK = new LanguageKey("staff.block",
+        "&7[&c&lFilter&7] &c(Blocked) %player%&f: &7%message%");
 
-    private static final BukkitLanguageKey MESSAGE_STAFF_FAKE = new BukkitLanguageKey("staff.fake",
-            "&7[&c&lFilter&7] &c(Faked) %player%&f: &7%message%");
+    private static final LanguageKey MESSAGE_STAFF_FAKE = new LanguageKey("staff.fake",
+        "&7[&c&lFilter&7] &c(Faked) %player%&f: &7%message%");
 
-    private static final BukkitLanguageKey MESSAGE_STAFF_CENSOR = new BukkitLanguageKey("staff.censor",
-            "&7[&c&lFilter&7] &c(Censored) %player%&f: &7%message%");
+    private static final LanguageKey MESSAGE_STAFF_CENSOR = new LanguageKey("staff.censor",
+        "&7[&c&lFilter&7] &c(Censored) %player%&f: &7%message%");
 
     //
 
@@ -85,12 +87,12 @@ public class FilterManager implements Listener {
         if (this.config.isRemoveLeetspeak()) {
             // just remove some simple variations
             message = message
-                    .replace('4', 'a')
-                    .replace('3', 'e')
-                    .replace('5', 's')
-                    .replace('7', 't')
-                    .replace('1', 'i')
-                    .replace('0', 'o');
+                .replace('4', 'a')
+                .replace('3', 'e')
+                .replace('5', 's')
+                .replace('7', 't')
+                .replace('1', 'i')
+                .replace('0', 'o');
         }
 
         return message;
@@ -119,10 +121,10 @@ public class FilterManager implements Listener {
                     if (this.callFilterEvent(player, event.getMessage(), action)) return;
 
                     String highlighted = this.stringBuffer.toString();
-                    MESSAGE_STAFF_CENSOR.builder("chatfilter.notifications.censor")
-                            .setPlaceholder("player", player.getDisplayName())
-                            .setPlaceholder("message", highlighted, false)
-                            .send();
+                    Bukkit.broadcast(MESSAGE_STAFF_CENSOR.builder()
+                        .setPlaceholder("player", player.getDisplayName())
+                        .setPlaceholder("message", highlighted, false)
+                        .build(), "chatfilter.notifications.censor");
 
                     // clear string buffer & matcher (currently contains staff message), then do censoring
                     this.stringBuffer.setLength(0);
@@ -149,35 +151,35 @@ public class FilterManager implements Listener {
                         event.setCancelled(true);
 
                         MESSAGE_BLOCK.builder(player)
-                                .setPlaceholder("message", event.getMessage(), false)
-                                .setPlaceholder("message-highlighted", event.getMessage(), false)
-                                .send();
+                            .setPlaceholder("message", event.getMessage(), false)
+                            .setPlaceholder("message-highlighted", event.getMessage(), false)
+                            .send();
 
-                        MESSAGE_STAFF_BLOCK.builder("chatfilter.notifications.block")
-                                .setPlaceholder("player", player.getDisplayName())
-                                .setPlaceholder("message", highlighted, false)
-                                .send();
+                        Bukkit.broadcast(MESSAGE_STAFF_BLOCK.builder()
+                            .setPlaceholder("player", player.getDisplayName())
+                            .setPlaceholder("message", highlighted, false)
+                            .build(), "chatfilter.notifications.block");
                     } else if (action == FilterAction.FAKE) {
                         if (MESSAGE_FAKE_CHAT_FORMAT.isEmpty()) {
                             // remove all recipients except the player
                             event.getRecipients().removeIf(p -> p != player);
 
-                            MESSAGE_STAFF_FAKE.builder("chatfilter.notifications.fake")
-                                    .setPlaceholder("player", player.getDisplayName())
-                                    .setPlaceholder("message", highlighted, false)
-                                    .send();
+                            Bukkit.broadcast(MESSAGE_STAFF_FAKE.builder()
+                                .setPlaceholder("player", player.getDisplayName())
+                                .setPlaceholder("message", highlighted, false)
+                                .build(), "chatfilter.notifications.fake");
                         } else {
                             // If the 'Fake Chat Format' message is not empty, send a fake message manually,
                             // instead of removing all recipients. This is mainly for compatibility with
                             // chat plugins that don't respect the recipients list.
 
-                            BukkitLanguageMessageBuilder builder = MESSAGE_FAKE_CHAT_FORMAT.builder(player)
-                                    .setPlaceholder("player", player.getDisplayName())
-                                    .setPlaceholder("message", event.getMessage());
+                            LanguageMessageBuilder builder = MESSAGE_FAKE_CHAT_FORMAT.builder(player)
+                                .setPlaceholder("player", player.getDisplayName())
+                                .setPlaceholder("message", event.getMessage());
 
                             // allow PlaceholderAPI support
                             if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-                                builder.withPlaceholderAPI(player);
+                                builder.addPlaceholderResolver(new PlaceholderAPIResolver("papi", player));
                             }
 
                             builder.send();

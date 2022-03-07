@@ -35,7 +35,7 @@ public class ChatFilterPlugin extends ExtendedJavaPlugin {
     @Override
     protected void enable() throws Exception {
         this.setupConfig();
-        LanguageManager.init(this.createConfig("language"));
+        LanguageManager.load(this.createConfig("language"));
 
         this.setupGuice();
         this.addListener(this.filterManager);

@@ -17,8 +17,8 @@ repositories {
 
 dependencies {
     compileOnly("org.spigotmc:spigot-api:1.8.8-R0.1-SNAPSHOT")
-    implementation("com.hpfxd.natelib:natelib-bukkit:2.5")
-    implementation("com.google.inject:guice:5.0.1")
+    implementation("com.hpfxd.natelib:natelib-bukkit:3.1")
+    implementation("com.google.inject:guice:5.1.0")
 }
 
 bukkit {
